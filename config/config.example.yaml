@@ -15,6 +15,16 @@ crawler:
     status: "[data-testid='issue-status'], td.status"
     updated_at: "[data-testid='issue-updated'], td.updated"
     next_page: "a[aria-label='Next page'], a.next"
+    priority: ""
+    description: ""
+    assignee: ""
+    reporter: ""
+    labels: ""
+    components: ""
+    fix_versions: ""
+    comment: ""
+    attachment: ""
+    history: ""
 database:
   path: data/nasdaq_jira.sqlite3
 logging:
