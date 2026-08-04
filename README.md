@@ -64,3 +64,18 @@ The pre-commit hooks run Ruff check, Ruff format, Black, and MyPy. Tests do not
 contact Jira; crawler integration tests should use a controlled test server.
 
 Do not commit real credentials, cookies, or a populated browser state file.
+
+### Make targets
+
+The Makefile provides consistent development commands. Set `PYTHON` to select
+a Python executable, for example `make PYTHON=python3.13 check`.
+
+| Target | Description |
+| --- | --- |
+| `make install` | Install the project, development dependencies, and Chromium for Playwright. |
+| `make lint` | Run Ruff lint checks. |
+| `make format` | Format Python files with Ruff format and Black. |
+| `make typecheck` | Run MyPy against the application source. |
+| `make test` | Run the pytest test suite. |
+| `make check` | Run lint, formatting checks, type checking, and tests without modifying files. |
+| `make clean` | Remove Python caches, test artifacts, and build outputs. |
