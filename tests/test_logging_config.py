@@ -15,9 +15,7 @@ def test_configure_logging_creates_console_and_daily_file_handlers(
 
     handlers = logging.getLogger().handlers
     file_handlers = [
-        handler
-        for handler in handlers
-        if isinstance(handler, TimedRotatingFileHandler)
+        handler for handler in handlers if isinstance(handler, TimedRotatingFileHandler)
     ]
 
     assert len(handlers) == 2

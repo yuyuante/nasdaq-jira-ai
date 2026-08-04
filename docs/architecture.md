@@ -4,7 +4,7 @@ The project uses a small, dependency-inverted layout:
 
 ```text
 src/nasdaq_jira/
-├── config.py          YAML loading and typed application settings
+├── config.py          Pydantic settings from YAML, `.env`, and environment variables
 ├── logging_config.py  application logging setup
 ├── crawler.py         Playwright navigation and retry coordination
 ├── parser.py          Jira DOM row to domain model conversion

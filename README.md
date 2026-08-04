@@ -16,9 +16,9 @@ python -m venv .venv
 .venv\Scripts\playwright install chromium
 ```
 
-Copy `.env.example` to `.env` for local environment overrides. Keep credentials
+Copy `.env.example` to `.env` for local environment overrides. YAML is validated with Pydantic; `NASDAQ_JIRA_` environment variables use `__` for nested fields and take precedence over `.env` and YAML. Keep credentials
 out of Git. Configure selectors and the Jira search URL in
-`config/config.example.yaml` (or a local `config/config.yaml`).
+`config/config.example.yaml` (or a local `config/config.yaml`). Required values are validated by Pydantic before the crawler starts.
 
 The `--login` command opens a headed browser; complete Jira login and press
 Enter in the terminal to save `storage_state.json`.

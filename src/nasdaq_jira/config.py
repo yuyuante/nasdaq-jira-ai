@@ -1,95 +1,110 @@
-"""YAML configuration loading and validation."""
+"""YAML, dotenv, and environment-backed application settings."""
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
+from pydantic import BaseModel, Field, field_validator
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+_REQUIRED_SELECTORS = {"issue", "key", "summary", "next_page"}
 
 
-@dataclass(frozen=True, slots=True)
-class BrowserConfig:
+class BrowserConfig(BaseModel):
+    """Browser execution settings."""
+
     headless: bool
-    timeout_ms: int
+    timeout_ms: int = Field(gt=0)
     storage_state_path: Path
 
 
-@dataclass(frozen=True, slots=True)
-class CrawlerConfig:
-    search_url: str
-    max_pages: int
-    page_size: int
+class CrawlerConfig(BaseModel):
+    """Jira search and result parsing settings."""
+
+    search_url: str = Field(min_length=1)
+    max_pages: int = Field(gt=0)
+    page_size: int = Field(gt=0)
     selectors: dict[str, str]
 
+    @field_validator("search_url")
+    @classmethod
+    def validate_search_url(cls, value: str) -> str:
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("search_url must be an absolute HTTP(S) URL")
+        return value
 
-@dataclass(frozen=True, slots=True)
-class DatabaseConfig:
+    @field_validator("selectors")
+    @classmethod
+    def validate_selectors(cls, value: dict[str, str]) -> dict[str, str]:
+        missing = _REQUIRED_SELECTORS - value.keys()
+        if missing:
+            raise ValueError(f"Missing selectors: {', '.join(sorted(missing))}")
+        return value
+
+
+class DatabaseConfig(BaseModel):
+    """Database persistence settings."""
+
     path: Path
 
 
-@dataclass(frozen=True, slots=True)
-class LoggingConfig:
-    level: str
+class LoggingConfig(BaseModel):
+    """Application logging settings."""
+
+    level: str = Field(min_length=1)
     file: Path
-    backup_count: int
+    backup_count: int = Field(ge=0)
 
 
-@dataclass(frozen=True, slots=True)
-class AppConfig:
+class AppConfig(BaseSettings):
+    """Validated application configuration.
+
+    Values are loaded from YAML by ``load_config``. Environment variables use
+    the ``NASDAQ_JIRA_`` prefix and ``__`` for nested fields; they override
+    values from YAML and `.env` values override YAML as well.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="NASDAQ_JIRA_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        extra="ignore",
+    )
+
     browser: BrowserConfig
     crawler: CrawlerConfig
     database: DatabaseConfig
     logging: LoggingConfig
 
-
-def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
-    value = data.get(name)
-    if not isinstance(value, dict):
-        raise ValueError(f"Missing or invalid configuration section: {name}")
-    return value
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Give process environment and dotenv values precedence over YAML."""
+        return (
+            env_settings,
+            dotenv_settings,
+            init_settings,
+            file_secret_settings,
+        )
 
 
 def load_config(path: Path) -> AppConfig:
-    """Load and validate an application YAML configuration."""
+    """Load YAML and validate the merged configuration with Pydantic."""
     with path.open(encoding="utf-8") as stream:
-        raw = yaml.safe_load(stream) or {}
+        raw: Any = yaml.safe_load(stream)
     if not isinstance(raw, dict):
         raise ValueError("Configuration root must be a YAML mapping")
-
-    browser = _section(raw, "browser")
-    crawler = _section(raw, "crawler")
-    database = _section(raw, "database")
-    logging = _section(raw, "logging")
-    selectors = crawler.get("selectors")
-    if not isinstance(selectors, dict) or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in selectors.items()
-    ):
-        raise ValueError("crawler.selectors must be a mapping of strings")
-    required = {"issue", "key", "summary", "next_page"}
-    missing = required - selectors.keys()
-    if missing:
-        raise ValueError(f"Missing selectors: {', '.join(sorted(missing))}")
-
-    return AppConfig(
-        browser=BrowserConfig(
-            headless=bool(browser.get("headless", True)),
-            timeout_ms=int(browser.get("timeout_ms", 30000)),
-            storage_state_path=Path(
-                browser.get("storage_state_path", "storage_state.json")
-            ),
-        ),
-        crawler=CrawlerConfig(
-            search_url=str(crawler["search_url"]),
-            max_pages=int(crawler.get("max_pages", 10)),
-            page_size=int(crawler.get("page_size", 50)),
-            selectors=selectors,
-        ),
-        database=DatabaseConfig(
-            path=Path(database.get("path", "data/nasdaq_jira.sqlite3"))
-        ),
-        logging=LoggingConfig(
-            level=str(logging.get("level", "INFO")),
-            file=Path(logging.get("file", "logs/nasdaq-jira.log")),
-            backup_count=int(logging.get("backup_count", 14)),
-        ),
-    )
+    return AppConfig(**raw)
