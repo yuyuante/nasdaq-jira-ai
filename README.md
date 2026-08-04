@@ -28,6 +28,15 @@ nasdaq-jira --config config/config.example.yaml --login
 nasdaq-jira --config config/config.example.yaml
 ```
 
+## Project layout
+
+```text
+src/       application package and domain modules
+tests/     automated tests
+config/    YAML configuration templates
+scripts/   thin operational entry points
+docs/      architecture and maintenance documentation
+
 ## Docker
 
 ```bash

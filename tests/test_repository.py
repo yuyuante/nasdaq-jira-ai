@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from nasdaq_jira.models import JiraIssue
-from nasdaq_jira.repository import SQLiteIssueRepository
+from nasdaq_jira.storage import SQLiteIssueRepository
 
 
 def test_upsert_is_idempotent(tmp_path: Path) -> None:

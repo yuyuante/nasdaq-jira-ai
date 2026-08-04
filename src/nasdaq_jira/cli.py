@@ -7,7 +7,7 @@ from pathlib import Path
 from .config import load_config
 from .crawler import JiraCrawler
 from .logging_config import configure_logging
-from .repository import SQLiteIssueRepository
+from .storage import SQLiteIssueRepository
 
 
 def main() -> None:
