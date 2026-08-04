@@ -1,7 +1,7 @@
 """YAML, dotenv, and environment-backed application settings."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import yaml
@@ -50,6 +50,24 @@ class CrawlerConfig(BaseModel):
         return value
 
 
+class ApiConfig(BaseModel):
+    """Jira REST API connection settings."""
+
+    base_url: str = "https://jira.example.com"
+    token: str | None = None
+    timeout_ms: int = Field(gt=0, default=30000)
+    page_size: int = Field(gt=0, default=50)
+    retry_attempts: int = Field(gt=0, default=3)
+    retry_initial_delay: float = Field(gt=0, default=1.0)
+
+
+class DatasourceConfig(BaseModel):
+    """Runtime datasource selection settings."""
+
+    mode: Literal["auto", "api", "playwright"] = "auto"
+    api: ApiConfig = Field(default_factory=ApiConfig)
+
+
 class DatabaseConfig(BaseModel):
     """Database persistence settings."""
 
@@ -82,6 +100,7 @@ class AppConfig(BaseSettings):
 
     browser: BrowserConfig
     crawler: CrawlerConfig
+    datasource: DatasourceConfig = Field(default_factory=DatasourceConfig)
     database: DatabaseConfig
     logging: LoggingConfig
 

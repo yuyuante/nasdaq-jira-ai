@@ -89,4 +89,38 @@ a Python executable, for example `make PYTHON=python3.13 check`.
 | `make typecheck` | Run MyPy against the application source. |
 | `make test` | Run the pytest test suite. |
 | `make check` | Run lint, formatting checks, type checking, and tests without modifying files. |
-| `make clean` | Remove Python caches, test artifacts, and build outputs. |
+| `make clean` | Remove Python caches, test artifacts, and build outputs. |'
+## Data sources
+
+The application depends on the `JiraDataSource` interface. `JiraApiDataSource`
+uses Jira REST API v2, while `JiraPlaywrightDataSource` reuses the existing
+Chromium session and parser. Business logic does not select or parse transport
+data.
+
+```text
+CLI / repository
+       |
+ JiraDataSource
+   /          \
+REST API   Playwright
+```
+
+Configure the source in YAML:
+
+```yaml
+datasource:
+  mode: auto  # auto, api, or playwright
+  api:
+    base_url: https://customer-support.nasdaq.com/jira
+    token: null
+    timeout_ms: 30000
+    page_size: 50
+```
+
+`auto` calls `/rest/api/2/myself`. A successful response selects the API;
+authentication, 404, network and other availability failures are logged and
+fall back to Playwright. Use `api` to require REST API mode or `playwright` to
+force the persisted `storage_state.json` session. API requests use pagination,
+timeouts, retries with exponential backoff, latency logging, and rate-limit
+errors.
+'

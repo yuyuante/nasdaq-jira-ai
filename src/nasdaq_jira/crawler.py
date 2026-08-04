@@ -44,7 +44,7 @@ class JiraCrawler:
         """Run interactive login, including MFA, and save the browser state."""
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=False)
-            context = await browser.new_context()
+            context = await browser.new_context(viewport=None)
             try:
                 page = await context.new_page()
                 page.set_default_timeout(self._browser_config.timeout_ms)
@@ -92,7 +92,9 @@ class JiraCrawler:
     async def _new_context(self, browser: Browser, state_path: Path) -> BrowserContext:
         """Create a browser context and turn invalid state into a clear error."""
         try:
-            return await browser.new_context(storage_state=str(state_path))
+            return await browser.new_context(
+                storage_state=str(state_path), viewport=None
+            )
         except PlaywrightError as exc:
             raise SessionExpiredError(
                 f"Unable to load Playwright session state at {state_path}. "
@@ -141,10 +143,33 @@ class JiraCrawler:
         )
         for _ in range(self._crawler_config.max_pages):
             await self._assert_authenticated(page)
-            await page.wait_for_selector(self._crawler_config.selectors["issue"])
+            await self._wait_for_issue_list(page)
             issues.extend(await self._parser.parse_page(page))
             next_link = page.locator(self._crawler_config.selectors["next_page"]).first
             if not await next_link.is_visible():
                 break
             await retry_async(partial(_click_next_page, next_link))
         return issues
+
+    async def _wait_for_issue_list(self, page: Page) -> None:
+        """Wait until Jira's dynamically rendered issue list stabilizes."""
+        locator = page.locator(self._crawler_config.selectors["issue"])
+        await locator.first.wait_for(state="attached")
+        previous_count = -1
+        stable_polls = 0
+        poll_interval_ms = 250
+        required_stable_polls = 8
+        deadline = asyncio.get_running_loop().time() + (
+            self._browser_config.timeout_ms / 1000
+        )
+
+        while asyncio.get_running_loop().time() < deadline:
+            current_count = await locator.count()
+            if current_count == previous_count:
+                stable_polls += 1
+            else:
+                stable_polls = 0
+                previous_count = current_count
+            if stable_polls >= required_stable_polls:
+                return
+            await page.wait_for_timeout(poll_interval_ms)
