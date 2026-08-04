@@ -13,6 +13,7 @@ def test_load_config() -> None:
     assert config.crawler.max_pages == 10
     assert config.crawler.selectors["issue"]
     assert config.logging.backup_count == 14
+    assert config.browser.authenticated_selector
 
 
 def test_environment_variables_override_yaml(monkeypatch: pytest.MonkeyPatch) -> None:

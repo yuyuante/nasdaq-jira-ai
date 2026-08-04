@@ -28,6 +28,8 @@ nasdaq-jira --config config/config.example.yaml --login
 nasdaq-jira --config config/config.example.yaml
 ```
 
+Login is completed manually in the headed browser, so MFA is supported without storing credentials in the project. A successful login saves `storage_state.json`; normal crawls reuse it automatically. If the session expires or cannot be verified, the CLI stops with a message instructing you to run `--login` again. Configure `browser.authenticated_selector` and `browser.login_selector` for the target Jira deployment.
+
 ## Project layout
 
 ```text

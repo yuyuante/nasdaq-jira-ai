@@ -2,6 +2,8 @@ browser:
   headless: true
   timeout_ms: 30000
   storage_state_path: storage_state.json
+  authenticated_selector: "a[href*='Logout'], a[href*='logout']"
+  login_selector: "form#login-form, input[name='username']"
 crawler:
   search_url: "https://jira.example.com/issues/?jql=project%20%3D%20NASDAQ"
   max_pages: 10

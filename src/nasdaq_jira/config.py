@@ -21,6 +21,8 @@ class BrowserConfig(BaseModel):
     headless: bool
     timeout_ms: int = Field(gt=0)
     storage_state_path: Path
+    authenticated_selector: str
+    login_selector: str
 
 
 class CrawlerConfig(BaseModel):
