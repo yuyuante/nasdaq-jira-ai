@@ -1,0 +1,32 @@
+minimum_pre_commit_version: "3.8.0"
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff
+        name: Ruff check
+        args: [--fix]
+      - id: ruff-format
+        name: Ruff format
+
+  - repo: local
+    hooks:
+      - id: black
+        name: Black
+        entry: black --check
+        language: python
+        types: [python]
+        additional_dependencies:
+          - black>=25.12,<26
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.20.2
+    hooks:
+      - id: mypy
+        args: [src]
+        pass_filenames: false
+        additional_dependencies:
+          - playwright>=1.62,<2
+          - PyYAML>=6.0,<7
+          - types-PyYAML>=6.0,<7

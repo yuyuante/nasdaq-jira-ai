@@ -1,11 +1,56 @@
-.venv/
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.wheels/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-*.py[cod]
-data/*.db
-data/*.sqlite3
-logs/
-.env
+.coverage
+.coverage.*
+htmlcov/
+.pyre/
+.pytype/
+.hypothesis/
 
+# Virtual environments and local configuration
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
+
+# Application data and logs
+data/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Playwright
+playwright-report/
+blob-report/
+playwright/.cache/
+test-results/
+storage_state.json
+
+# IDEs
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS files
+.DS_Store
+Thumbs.db
