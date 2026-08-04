@@ -1,0 +1,21 @@
+browser:
+  headless: true
+  timeout_ms: 30000
+  storage_state_path: storage_state.json
+crawler:
+  search_url: "https://jira.example.com/issues/?jql=project%20%3D%20NASDAQ"
+  max_pages: 10
+  page_size: 50
+  selectors:
+    issue: "tr[data-testid='issue-row'], tr.issuerow"
+    key: "a[data-testid='issue-key'], a.issue-link"
+    summary: "[data-testid='issue-summary'], td.summary"
+    status: "[data-testid='issue-status'], td.status"
+    updated_at: "[data-testid='issue-updated'], td.updated"
+    next_page: "a[aria-label='Next page'], a.next"
+database:
+  path: data/nasdaq_jira.sqlite3
+logging:
+  level: INFO
+  file: logs/nasdaq-jira.log
+

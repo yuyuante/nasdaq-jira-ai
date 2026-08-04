@@ -1,0 +1,9 @@
+services:
+  crawler:
+    build: .
+    volumes:
+      - ./config:/app/config:ro
+      - ./storage_state.json:/app/storage_state.json
+      - ./data:/app/data
+      - ./logs:/app/logs
+
