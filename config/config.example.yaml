@@ -18,4 +18,5 @@ database:
 logging:
   level: INFO
   file: logs/nasdaq-jira.log
+  backup_count: 14
 

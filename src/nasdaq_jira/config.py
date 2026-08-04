@@ -31,6 +31,7 @@ class DatabaseConfig:
 class LoggingConfig:
     level: str
     file: Path
+    backup_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,5 +90,6 @@ def load_config(path: Path) -> AppConfig:
         logging=LoggingConfig(
             level=str(logging.get("level", "INFO")),
             file=Path(logging.get("file", "logs/nasdaq-jira.log")),
+            backup_count=int(logging.get("backup_count", 14)),
         ),
     )

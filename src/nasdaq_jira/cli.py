@@ -18,7 +18,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     config = load_config(args.config)
-    configure_logging(config.logging.level, config.logging.file)
+    configure_logging(
+        config.logging.level, config.logging.file, config.logging.backup_count
+    )
     crawler = JiraCrawler(config.browser, config.crawler)
     if args.login:
         asyncio.run(crawler.login())
