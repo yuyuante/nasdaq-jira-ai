@@ -12,4 +12,9 @@ class PromptBuilder:
             f"[{item.issue_key} | updated={item.updated_at}] {item.text}"
             for item in unique.values()
         )
-        return f"Question: {query}\n\nContext:\n{context}\n\nReturn executive_summary, technical_summary, action_items, related_issues, confidence (0-1), and sources. Cite issue keys and updated times. Never invent facts."
+        instructions = (
+            "Return executive_summary, technical_summary, action_items, "
+            "related_issues, confidence (0-1), and sources. "
+            "Cite issue keys and updated times. Never invent facts."
+        )
+        return f"Question: {query}\n\nContext:\n{context}\n\n{instructions}"

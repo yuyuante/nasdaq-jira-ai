@@ -36,10 +36,18 @@ class SQLiteFts5VectorStore(VectorStore):
         self._db = sqlite3.connect(path)
         self._db.row_factory = sqlite3.Row
         self._db.execute(
-            "CREATE TABLE IF NOT EXISTS rag_chunks (chunk_id TEXT PRIMARY KEY, issue_key TEXT NOT NULL, text TEXT NOT NULL, updated_at TEXT, metadata_json TEXT NOT NULL, embedding_json TEXT NOT NULL)"
+            """CREATE TABLE IF NOT EXISTS rag_chunks (
+                chunk_id TEXT PRIMARY KEY,
+                issue_key TEXT NOT NULL,
+                text TEXT NOT NULL,
+                updated_at TEXT,
+                metadata_json TEXT NOT NULL,
+                embedding_json TEXT NOT NULL
+            )"""
         )
         self._db.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS rag_fts USING fts5(chunk_id UNINDEXED, text)"
+            """CREATE VIRTUAL TABLE IF NOT EXISTS rag_fts
+            USING fts5(chunk_id UNINDEXED, text)"""
         )
         self._db.commit()
 
@@ -81,7 +89,9 @@ class SQLiteFts5VectorStore(VectorStore):
         filters: dict[str, str] | None = None,
     ) -> list[SearchResult]:
         rows = self._db.execute(
-            "SELECT c.*, bm25(rag_fts) AS rank FROM rag_fts JOIN rag_chunks c ON c.chunk_id = rag_fts.chunk_id WHERE rag_fts MATCH ? ORDER BY rank LIMIT ?",
+            """SELECT c.*, bm25(rag_fts) AS rank
+            FROM rag_fts JOIN rag_chunks c ON c.chunk_id = rag_fts.chunk_id
+            WHERE rag_fts MATCH ? ORDER BY rank LIMIT ?""",
             (self._fts_query(query), top_k * 5),
         ).fetchall()
         results = []

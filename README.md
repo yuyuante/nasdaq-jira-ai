@@ -1,43 +1,124 @@
 # Nasdaq Jira Crawler
 
-Production-oriented Python 3.13 crawler for Jira search pages, backed by SQLite.
-The crawler uses Playwright and a persisted browser session so it can work with
-private Jira installations without putting credentials in configuration files.
+Nasdaq Jira 爬蟲與 AI 知識庫。支援 Python 3.13、Playwright、Jira REST API、SQLite、增量同步與 RAG 問答。
 
-## Quick start
+A production-oriented Nasdaq Jira crawler and AI knowledge base. It supports Python 3.13, Playwright, the Jira REST API, SQLite, incremental synchronization, and RAG-based question answering.
+
+## 快速開始 / Quick start
 
 ```bash
 python -m venv .venv
 # macOS/Linux
-.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m pip install -e ".[dev]"
 .venv/bin/playwright install chromium
 # Windows PowerShell
 .venv\Scripts\python -m pip install -e ".[dev]"
 .venv\Scripts\playwright install chromium
 ```
 
-Copy `.env.example` to `.env` for local environment overrides. YAML is validated with Pydantic; `NASDAQ_JIRA_` environment variables use `__` for nested fields and take precedence over `.env` and YAML. Keep credentials
-out of Git. Configure selectors and the Jira search URL in
-`config/config.example.yaml` (or a local `config/config.yaml`). Required values are validated by Pydantic before the crawler starts.
+複製 `.env.example` 為 `.env` 以設定本機環境變數。YAML 會以 Pydantic 驗證；`NASDAQ_JIRA_` 環境變數使用 `__` 表示巢狀欄位，優先於 `.env` 與 YAML。請勿將憑證提交至 Git。
 
-The `--login` command opens a headed browser; complete Jira login and press
-Enter in the terminal to save `storage_state.json`.
+Copy `.env.example` to `.env` for local overrides. YAML is validated with Pydantic. `NASDAQ_JIRA_` environment variables use `__` for nested fields and take precedence over `.env` and YAML. Never commit credentials.
 
-```bash
-nasdaq-jira --config config/config.example.yaml --login
-nasdaq-jira --config config/config.example.yaml
+請在 `config/config.example.yaml` 或本機 `config/config.yaml` 設定 Jira URL 與 selectors。
+
+Configure the Jira URL and selectors in `config/config.example.yaml` or a local `config/config.yaml`.
+
+## 登入與爬取 / Login and crawling
+
+`--login` 會開啟可見的 Chromium。請在瀏覽器完成 Jira 登入與 MFA，再回到終端機按 Enter；登入狀態會儲存為 `storage_state.json`，後續執行會自動重用。
+
+The `--login` command opens a visible Chromium browser. Complete Jira login and MFA, then press Enter in the terminal. The session is saved to `storage_state.json` and reused automatically.
+
+```powershell
+python -m nasdaq_jira --config config/config.yaml --login
+python -m nasdaq_jira --config config/config.yaml
 ```
 
-Login is completed manually in the headed browser, so MFA is supported without storing credentials in the project. A successful login saves `storage_state.json`; normal crawls reuse it automatically. If the session expires or cannot be verified, the CLI stops with a message instructing you to run `--login` again. Configure `browser.authenticated_selector` and `browser.login_selector` for the target Jira deployment.
+若 session 過期，請重新執行 `--login`。請勿提交 cookies 或已填入內容的 `storage_state.json`。
 
-## Project layout
+If the session expires, run `--login` again. Do not commit cookies or a populated `storage_state.json`.
+
+## 專案結構 / Project layout
 
 ```text
-src/       application package and domain modules
-tests/     automated tests
-config/    YAML configuration templates
-scripts/   thin operational entry points
-docs/      architecture and maintenance documentation
+src/nasdaq_jira/       application and domain modules / 應用程式與領域模組
+tests/                 automated tests / 自動化測試
+config/                YAML templates / YAML 設定範本
+scripts/               operational scripts / 作業腳本
+docs/                  architecture documentation / 架構文件
+```
+
+## 資料來源 / Data sources
+
+應用程式只依賴 `JiraDataSource` 介面。`JiraApiDataSource` 使用 Jira REST API v2；`JiraPlaywrightDataSource` 重用既有 Chromium session 與 parser。業務邏輯不需要知道實際傳輸方式。
+
+The application depends only on the `JiraDataSource` interface. `JiraApiDataSource` uses Jira REST API v2, while `JiraPlaywrightDataSource` reuses the authenticated Chromium session and parser. Business logic is transport-independent.
+
+```text
+CLI / repository
+       |
+ JiraDataSource
+   /          \
+REST API   Playwright
+```
+
+```yaml
+datasource:
+  mode: auto  # auto / api / playwright
+  api:
+    base_url: https://customer-support.nasdaq.com/jira
+    token: null
+    timeout_ms: 30000
+    page_size: 50
+```
+
+`auto` 會呼叫 `/rest/api/2/myself`。API 驗證失敗、404、網路錯誤或 API 不可用時會記錄原因並 fallback 至 Playwright。
+
+In `auto` mode, the application calls `/rest/api/2/myself`. Authentication, 404, network, or availability failures are logged and fall back to Playwright.
+
+## 增量同步 / Incremental synchronization
+
+同步狀態會儲存在 SQLite 的 `sync_state` 與 `sync_events`。預設使用六小時 overlap window，避免邊界更新遺漏。
+
+Synchronization state is stored in the SQLite `sync_state` and `sync_events` tables. The default six-hour overlap window prevents missed updates at the synchronization boundary.
+
+```yaml
+sync:
+  mode: incremental
+  overlap_hours: 6
+  batch_size: 50
+  datasource: default
+```
+
+```powershell
+python -m nasdaq_jira --config config/config.yaml sync
+python -m nasdaq_jira --config config/config.yaml sync --full
+python -m nasdaq_jira --config config/config.yaml sync --resume
+```
+
+增量模式會使用 `updated >= last_sync_time - overlap_hours` JQL。每個成功 batch 都會建立 checkpoint；中斷後使用 `--resume` 從 checkpoint 繼續。事件具備 immutable 與 idempotent 特性。
+
+Incremental mode uses `updated >= last_sync_time - overlap_hours`. Every successful batch creates a checkpoint; `--resume` continues after an interruption. Events are immutable and idempotent.
+
+## AI 知識庫（RAG） / AI knowledge base (RAG)
+
+RAG 會將 Jira summary、description、comments 與 attachments metadata 分 chunk，寫入 SQLite FTS5。Embedding 會依 chunk identity cache，未變更 Issue 不會重複呼叫 embedding provider。
+
+The RAG engine chunks Jira summaries, descriptions, comments, and attachment metadata into SQLite FTS5. Embeddings are cached by chunk identity, so unchanged issues do not call the provider again.
+
+Provider 與 vector store 都是抽象介面；目前提供 OpenAI embedding provider 與 SQLite FTS5 backend，未來可擴充 FAISS、ChromaDB 或 pgvector。
+
+Both the provider and vector store are abstract interfaces. OpenAI embeddings and SQLite FTS5 are the initial implementations; FAISS, ChromaDB, or pgvector can be added later.
+
+```powershell
+$env:NASDAQ_JIRA_RAG__API_KEY = "your-key"
+python -m nasdaq_jira --config config/config.yaml ask "Why did FIX Session disconnect?"
+```
+
+回答包含 executive summary、technical summary、action items、related issues、confidence 與 sources citations。
+
+Answers include an executive summary, technical summary, action items, related issues, confidence, and source citations.
 
 ## Docker
 
@@ -45,14 +126,15 @@ docs/      architecture and maintenance documentation
 docker compose run --rm crawler
 ```
 
-Mount `storage_state.json`, `data/`, and `logs/` as volumes. The default
-container command uses the example configuration; copy it to
-`config/config.yaml` for real use.
+請掛載 `storage_state.json`、`data/` 與 `logs/`；正式設定請先複製為 `config/config.yaml`。
 
-## Development setup
+Mount `storage_state.json`, `data/`, and `logs/` as volumes. Copy the example configuration to `config/config.yaml` for real use.
 
-The project targets Python 3.13. Install the development dependencies and
-Playwright browser, then install the Git hooks:
+## 開發環境 / Development setup
+
+專案目標為 Python 3.13。安裝 development dependencies、Chromium 與 pre-commit hooks：
+
+The project targets Python 3.13. Install development dependencies, Chromium, and pre-commit hooks:
 
 ```bash
 python -m pip install -e ".[dev]"
@@ -60,7 +142,7 @@ python -m playwright install chromium
 pre-commit install
 ```
 
-Run the complete local validation suite:
+完整檢查 / Full validation:
 
 ```bash
 pre-commit run --all-files
@@ -71,101 +153,18 @@ mypy src
 pytest
 ```
 
-The pre-commit hooks run Ruff check, Ruff format, Black, and MyPy. Tests do not
-contact Jira; crawler integration tests should use a controlled test server.
+測試不會連線 Jira；整合測試應使用受控測試伺服器。
 
-Do not commit real credentials, cookies, or a populated browser state file.
+Tests do not contact Jira; integration tests should use a controlled test server.
 
-### Make targets
+### Make targets / Make 指令
 
-The Makefile provides consistent development commands. Set `PYTHON` to select
-a Python executable, for example `make PYTHON=python3.13 check`.
-
-| Target | Description |
-| --- | --- |
-| `make install` | Install the project, development dependencies, and Chromium for Playwright. |
-| `make lint` | Run Ruff lint checks. |
-| `make format` | Format Python files with Ruff format and Black. |
-| `make typecheck` | Run MyPy against the application source. |
-| `make test` | Run the pytest test suite. |
-| `make check` | Run lint, formatting checks, type checking, and tests without modifying files. |
-| `make clean` | Remove Python caches, test artifacts, and build outputs. |'
-## Data sources
-
-The application depends on the `JiraDataSource` interface. `JiraApiDataSource`
-uses Jira REST API v2, while `JiraPlaywrightDataSource` reuses the existing
-Chromium session and parser. Business logic does not select or parse transport
-data.
-
-```text
-CLI / repository
-       |
- JiraDataSource
-   /          \
-REST API   Playwright
-```
-
-Configure the source in YAML:
-
-```yaml
-datasource:
-  mode: auto  # auto, api, or playwright
-  api:
-    base_url: https://customer-support.nasdaq.com/jira
-    token: null
-    timeout_ms: 30000
-    page_size: 50
-```
-
-`auto` calls `/rest/api/2/myself`. A successful response selects the API;
-authentication, 404, network and other availability failures are logged and
-fall back to Playwright. Use `api` to require REST API mode or `playwright` to
-force the persisted `storage_state.json` session. API requests use pagination,
-timeouts, retries with exponential backoff, latency logging, and rate-limit
-errors.
-
-## Incremental synchronization
-
-Synchronization state is stored in SQLite tables `sync_state` and
-`sync_events`. The default mode is incremental with a six-hour overlap window:
-
-```yaml
-sync:
-  mode: incremental
-  overlap_hours: 6
-  batch_size: 50
-  datasource: default
-```
-
-Run synchronization with:
-
-```powershell
-python -m nasdaq_jira --config config/config.yaml sync
-python -m nasdaq_jira --config config/config.yaml sync --full
-python -m nasdaq_jira --config config/config.yaml sync --resume
-```
-
-Incremental mode adds `updated >= last_sync_time - overlap_hours` to the JQL.
-Each successful batch checkpoints its last issue key. If a run is interrupted,
-`--resume` continues after the saved checkpoint. Issue snapshots and immutable,
-idempotent events are persisted so duplicate updates do not generate duplicate
-processing. Metrics report total, new, updated, skipped and failed issues.
-
-## AI knowledge base (RAG)
-
-The RAG engine indexes Jira summaries, descriptions, comments and attachment
-metadata into SQLite FTS5. Embeddings are cached by chunk identity, so unchanged
-issues do not call the embedding provider again. The provider and vector store
-are interfaces; OpenAI and SQLite are the initial implementations.
-
-Configure `rag.api_key` through the environment rather than committing it:
-
-```powershell
-$env:NASDAQ_JIRA_RAG__API_KEY = "your-key"
-python -m nasdaq_jira --config config/config.yaml ask "Why did FIX Session disconnect?"
-```
-
-Answers contain executive and technical summaries, action items, related issues,
-confidence and issue citations. Retrieval supports top-k, score threshold and
-metadata filters through the Python API. OpenAI embeddings use the configured
-model and `/v1/embeddings`; answer generation uses the configured answer model.
+| Target | 中文說明 | English description |
+| --- | --- | --- |
+| `make install` | 安裝專案、開發依賴與 Chromium | Install the project, dev dependencies, and Chromium |
+| `make lint` | 執行 Ruff lint | Run Ruff lint checks |
+| `make format` | 執行 Ruff format 與 Black | Run Ruff format and Black |
+| `make typecheck` | 執行 MyPy | Run MyPy |
+| `make test` | 執行 pytest | Run pytest |
+| `make check` | 執行完整檢查 | Run lint, formatting, type checks, and tests |
+| `make clean` | 清除快取與 build artifacts | Remove caches and build artifacts |

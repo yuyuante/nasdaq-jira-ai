@@ -23,7 +23,12 @@ class FakeEmbedding(EmbeddingProvider):
 
 class FakeAnswer(AnswerProvider):
     async def answer(self, prompt: str) -> RagAnswer:
-        return RagAnswer(executive_summary=prompt[:10], technical_summary="details", confidence=0.9, sources=["TEST-1"])
+        return RagAnswer(
+            executive_summary=prompt[:10],
+            technical_summary="details",
+            confidence=0.9,
+            sources=["TEST-1"],
+        )
 
 
 def test_chunking_preserves_issue_key() -> None:
@@ -45,7 +50,9 @@ async def test_rag_cache_retrieval_and_answer(tmp_path: Path) -> None:
     embeddings = FakeEmbedding()
     store = SQLiteFts5VectorStore(tmp_path / "rag.sqlite3")
     engine = RagEngine(RagConfig(score_threshold=0), embeddings, store, FakeAnswer())
-    issue = JiraIssue(key="TEST-1", summary="FIX Session disconnect", description="network timeout")
+    issue = JiraIssue(
+        key="TEST-1", summary="FIX Session disconnect", description="network timeout"
+    )
     await engine.index([issue])
     await engine.index([issue])
     assert embeddings.calls == 1
