@@ -1,3 +1,14 @@
+rag:
+  enabled: true
+  embedding_provider: openai
+  embedding_model: text-embedding-3-small
+  answer_model: gpt-4o-mini
+  api_key: null
+  base_url: https://api.openai.com/v1
+  top_k: 8
+  score_threshold: 0.75
+  chunk_size: 800
+  chunk_overlap: 100
 sync:
   mode: incremental
   overlap_hours: 6

@@ -123,7 +123,6 @@ fall back to Playwright. Use `api` to require REST API mode or `playwright` to
 force the persisted `storage_state.json` session. API requests use pagination,
 timeouts, retries with exponential backoff, latency logging, and rate-limit
 errors.
-'
 
 ## Incremental synchronization
 
@@ -151,3 +150,22 @@ Each successful batch checkpoints its last issue key. If a run is interrupted,
 `--resume` continues after the saved checkpoint. Issue snapshots and immutable,
 idempotent events are persisted so duplicate updates do not generate duplicate
 processing. Metrics report total, new, updated, skipped and failed issues.
+
+## AI knowledge base (RAG)
+
+The RAG engine indexes Jira summaries, descriptions, comments and attachment
+metadata into SQLite FTS5. Embeddings are cached by chunk identity, so unchanged
+issues do not call the embedding provider again. The provider and vector store
+are interfaces; OpenAI and SQLite are the initial implementations.
+
+Configure `rag.api_key` through the environment rather than committing it:
+
+```powershell
+$env:NASDAQ_JIRA_RAG__API_KEY = "your-key"
+python -m nasdaq_jira --config config/config.yaml ask "Why did FIX Session disconnect?"
+```
+
+Answers contain executive and technical summaries, action items, related issues,
+confidence and issue citations. Retrieval supports top-k, score threshold and
+metadata filters through the Python API. OpenAI embeddings use the configured
+model and `/v1/embeddings`; answer generation uses the configured answer model.

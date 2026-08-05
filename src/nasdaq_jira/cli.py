@@ -10,13 +10,17 @@ from .datasources.exceptions import AuthenticationError, PlaywrightError
 from .datasources.playwright import JiraPlaywrightDataSource
 from .logging_config import configure_logging
 from .models import JiraIssue
+from .rag.engine import RagEngine
+from .rag.providers import OpenAIProvider
+from .rag.vector_store import SQLiteFts5VectorStore
 from .storage import SQLiteIssueRepository
 from .sync.engine import SyncEngine, jql_from_search_url
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Crawl Nasdaq Jira issues")
-    parser.add_argument("command", nargs="?", choices=("sync",), default=None)
+    parser.add_argument("command", nargs="?", choices=("sync", "ask"), default=None)
+    parser.add_argument("query", nargs="?")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument(
         "--login", action="store_true", help="save Playwright login state"
@@ -42,7 +46,11 @@ def main() -> None:
             parser.exit(1, f"Login error: {exc}\n")
         return
     try:
-        if args.command == "sync":
+        if args.command == "ask":
+            if not args.query:
+                parser.error("ask requires a question")
+            asyncio.run(_ask(config, args.query))
+        elif args.command == "sync":
             asyncio.run(_sync(config, args))
         else:
             issues = asyncio.run(_crawl(config))
@@ -89,3 +97,24 @@ async def _sync(config: AppConfig, args: argparse.Namespace) -> None:
         close = getattr(source, "close", None)
         if close is not None:
             await close()
+
+
+async def _ask(config: AppConfig, query: str) -> None:
+    if not config.rag.enabled or not config.rag.api_key:
+        raise RuntimeError("RAG is disabled or rag.api_key is not configured")
+    provider = OpenAIProvider(
+        config.rag.api_key,
+        config.rag.base_url,
+        config.rag.embedding_model,
+        config.rag.answer_model,
+    )
+    store = SQLiteFts5VectorStore(config.database.path)
+    try:
+        with SQLiteIssueRepository(config.database.path) as repository:
+            engine = RagEngine(config.rag, provider, store, provider)
+            await engine.index(repository.all_issues())
+            answer = await engine.ask(query)
+            print(answer.model_dump_json(indent=2))
+    finally:
+        store.close()
+        await provider.close()

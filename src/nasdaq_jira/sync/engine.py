@@ -1,7 +1,6 @@
 """Incremental Jira synchronization engine."""
 
 import hashlib
-import json
 import logging
 import time
 from datetime import UTC, datetime, timedelta

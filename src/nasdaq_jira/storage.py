@@ -165,6 +165,15 @@ class SQLiteIssueRepository:
         )
         self._connection.commit()
 
+    def all_issues(self) -> list[JiraIssue]:
+        rows = self._connection.execute("SELECT key FROM jira_issues").fetchall()
+        issues: list[JiraIssue] = []
+        for row in rows:
+            issue = self.get_issue(row["key"])
+            if issue is not None:
+                issues.append(issue)
+        return issues
+
     def count(self) -> int:
         row = self._connection.execute(
             "SELECT COUNT(*) AS count FROM jira_issues"
