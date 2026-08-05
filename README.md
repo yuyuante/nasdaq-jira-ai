@@ -77,6 +77,15 @@ datasource:
 
 In `auto` mode, the application calls `/rest/api/2/myself`. Authentication, 404, network, or availability failures are logged and fall back to Playwright.
 
+## Issue 詳細資料與 Comments 摘要 / Issue details and comment summaries
+
+每個 Jira issue 會從詳細頁擷取 Details 欄位、Description、Comments 與 History。原始 issue 會保留在 `jira_issues.issue_json`；Comments 與 History 也會分別寫入 `jira_comments` 與 `jira_history`，方便查詢與增量更新。
+
+Each Jira issue is enriched from its detail page with Details fields, Description, Comments, and History. The original issue snapshot is stored in `jira_issues.issue_json`; comments and history are also normalized into `jira_comments` and `jira_history` for querying and incremental updates.
+
+Comment summaries are deterministic extractive summaries by default, so crawling does not require an AI API key. The raw comment body is always preserved. The stored `body_hash` allows a future LLM summarizer to regenerate summaries only when comment content changes.
+
+Comments are summarized with a deterministic extractive method by default. The original comment body is always preserved, and `body_hash` enables a future LLM summarizer to process only changed comments.
 ## 增量同步 / Incremental synchronization
 
 同步狀態會儲存在 SQLite 的 `sync_state` 與 `sync_events`。預設使用六小時 overlap window，避免邊界更新遺漏。

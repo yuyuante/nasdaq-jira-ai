@@ -10,7 +10,7 @@ _CONFIG_PATH = Path("config/config.example.yaml")
 
 def test_load_config() -> None:
     config = load_config(_CONFIG_PATH)
-    assert config.crawler.max_pages == 10
+    assert config.crawler.max_pages == 100
     assert config.crawler.selectors["issue"]
     assert config.logging.backup_count == 14
     assert config.browser.authenticated_selector

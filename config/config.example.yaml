@@ -31,15 +31,34 @@ browser:
   login_selector: "form#login-form, input[name='username']"
 crawler:
   search_url: "https://jira.example.com/issues/?jql=project%20%3D%20NASDAQ"
-  max_pages: 10
+  max_pages: 100
   page_size: 50
+  detail_concurrency: 10
+  detail_activity_timeout_ms: 2000
   selectors:
-    issue: "tr[data-testid='issue-row'], tr.issuerow"
-    key: "a[data-testid='issue-key'], a.issue-link"
-    summary: "[data-testid='issue-summary'], td.summary"
+    issue: "a[href*='/jira/browse/'][href*='-'], tr[data-testid='issue-row'], tr.issuerow"
+    key: "a[href*='/jira/browse/'][href*='-'], a[data-issue-key], a[data-testid='issue-key'], a.issue-link"
+    summary: "a[href*='/jira/browse/'][href*='-'], a[data-issue-key], [data-testid='issue-summary'], td.summary"
     status: "[data-testid='issue-status'], td.status"
     updated_at: "[data-testid='issue-updated'], td.updated"
-    next_page: "a[aria-label='Next page'], a.next"
+    next_page: "a[href*='startIndex='], a[aria-label='Next page'], a[title='Next'], a.next"
+    detail_summary: "#summary-val h2"
+    detail_status: "#opsbar-transitions_more .dropdown-text"
+    detail_priority: "#priority-val"
+    detail_description: "#description-val .user-content-block"
+    detail_assignee: "#assignee-val"
+    detail_reporter: "#reporter-val"
+    detail_issue_type: "#type-val"
+    detail_resolution: "#resolution-val"
+    detail_affects_versions: "#versions-val .version-link"
+    detail_service_product: ""
+    detail_created_at: "#created-val"
+    detail_labels: "#labels-wrap .lozenge"
+    detail_components: "#components-val .component-link"
+    detail_fix_versions: "#fixfor-val .version-link"
+    detail_comments: "#issuecommentcontainer .action-body, .action-body"
+    detail_history: "#changehistory .changehistory"
+    detail_attachments: "#attachmentmodule .attachment-title"
     priority: ""
     description: ""
     assignee: ""

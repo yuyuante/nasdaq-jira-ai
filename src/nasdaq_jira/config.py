@@ -31,6 +31,8 @@ class CrawlerConfig(BaseModel):
     search_url: str = Field(min_length=1)
     max_pages: int = Field(gt=0)
     page_size: int = Field(gt=0)
+    detail_concurrency: int = Field(gt=0, default=10)
+    detail_activity_timeout_ms: int = Field(gt=0, default=2000)
     selectors: dict[str, str]
 
     @field_validator("search_url")
