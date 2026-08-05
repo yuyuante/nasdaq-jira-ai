@@ -35,9 +35,34 @@ python -m nasdaq_jira --config config/config.yaml --login
 python -m nasdaq_jira --config config/config.yaml
 ```
 
+Windows 批次檔也已提供常用指令包裝：
+
+```bat
+scripts\nasdaq-jira.bat login
+scripts\nasdaq-jira.bat crawl
+scripts\nasdaq-jira.bat sync
+scripts\nasdaq-jira.bat sync-full
+scripts\nasdaq-jira.bat sync-resume
+scripts\nasdaq-jira.bat ask "Why did FIX Session disconnect?"
+scripts\nasdaq-jira.bat show XTAIFEX-306
+scripts\nasdaq-jira.bat show XTAIFEX-306 --all-comments
+```
+
+The Windows batch wrapper provides the same common commands. It uses `.venv` when available, otherwise it falls back to `python`. Create `config/config.yaml` locally before running it.
 若 session 過期，請重新執行 `--login`。請勿提交 cookies 或已填入內容的 `storage_state.json`。
 
 If the session expires, run `--login` again. Do not commit cookies or a populated `storage_state.json`.
+
+顯示本機 Ticket / Show a stored ticket
+
+`show` 預設只讀取 SQLite 並顯示 Comments 統一摘要；加上 `--all-comments` 可列出所有 Comments。兩者都不需要 Jira 連線或 OpenAI API Key：
+
+The `show` command reads SQLite only. It does not require a Jira connection or OpenAI API key, and displays issue details, description, comment summaries, attachments, and history:
+
+```bat
+scripts\nasdaq-jira.bat show XTAIFEX-306
+scripts\nasdaq-jira.bat show XTAIFEX-306 --all-comments
+```
 
 ## 專案結構 / Project layout
 

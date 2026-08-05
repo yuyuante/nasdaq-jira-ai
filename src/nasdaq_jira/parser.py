@@ -33,6 +33,16 @@ def summarize_text(value: str, max_chars: int = 280) -> str:
     return summary[: max_chars - 1].rstrip() + "…"
 
 
+def summarize_comments(comments: list[JiraComment]) -> str:
+    """Summarize every comment independently and preserve their order."""
+    summaries = [
+        f"{index}. {summarize_text(comment.body)}"
+        for index, comment in enumerate(comments, start=1)
+        if comment.body.strip()
+    ]
+    return "\n".join(summaries)
+
+
 class JiraIssueParser:
     """Convert configured Jira result and detail pages into domain models."""
 
@@ -92,12 +102,7 @@ class JiraIssueParser:
         )
         comments = await self._page_comments(page)
         history = await self._page_history(page)
-        resolution_summary = (
-            summarize_text(
-                " ".join(comment.summary or comment.body for comment in comments)
-            )
-            or None
-        )
+        resolution_summary = summarize_comments(comments) or None
         updates: dict[str, object] = {
             "details": details,
             "comments": comments,
@@ -137,17 +142,39 @@ class JiraIssueParser:
             return []
         comments: list[JiraComment] = []
         for index, item in enumerate(await locator.all()):
-            body = (await item.inner_text()).strip()
+            body = re.sub(
+                r"^\\s*commented by .*?(?:\\r?\\n)+",
+                "",
+                (await item.inner_text()).strip(),
+                flags=re.IGNORECASE,
+            )
             if not body:
                 continue
-            comment_id = await item.get_attribute(
-                "data-comment-id"
-            ) or await item.get_attribute("id")
+            container = item.locator(
+                "xpath=ancestor::div[contains(@class, 'activity-comment')][1]"
+            )
+            comment_id = await container.get_attribute(
+                "id"
+            ) or await item.get_attribute("data-comment-id")
+            author_locator = container.locator("a.user-hover").first
+            author = (
+                (await author_locator.inner_text()).strip()
+                if await author_locator.count()
+                else None
+            )
+            time_locator = container.locator("time[datetime]").first
+            created_at = (
+                await time_locator.get_attribute("datetime")
+                if await time_locator.count()
+                else None
+            )
             comments.append(
                 JiraComment(
                     comment_id=comment_id or f"comment-{index}",
                     body=body,
                     summary=summarize_text(body),
+                    author=author or None,
+                    created_at=created_at,
                 )
             )
         return comments

@@ -33,8 +33,8 @@ crawler:
   search_url: "https://jira.example.com/issues/?jql=project%20%3D%20NASDAQ"
   max_pages: 100
   page_size: 50
-  detail_concurrency: 10
-  detail_activity_timeout_ms: 2000
+  detail_concurrency: 4
+  detail_activity_timeout_ms: 10000
   selectors:
     issue: "a[href*='/jira/browse/'][href*='-'], tr[data-testid='issue-row'], tr.issuerow"
     key: "a[href*='/jira/browse/'][href*='-'], a[data-issue-key], a[data-testid='issue-key'], a.issue-link"
