@@ -35,9 +35,34 @@ python -m nasdaq_jira --config config/config.yaml --login
 python -m nasdaq_jira --config config/config.yaml
 ```
 
+Windows 批次檔也已提供常用指令包裝：
+
+```bat
+scripts\nasdaq-jira.bat login
+scripts\nasdaq-jira.bat crawl
+scripts\nasdaq-jira.bat sync
+scripts\nasdaq-jira.bat sync-full
+scripts\nasdaq-jira.bat sync-resume
+scripts\nasdaq-jira.bat ask "Why did FIX Session disconnect?"
+scripts\nasdaq-jira.bat show XTAIFEX-306
+scripts\nasdaq-jira.bat show XTAIFEX-306 --all-comments
+```
+
+The Windows batch wrapper provides the same common commands. It uses `.venv` when available, otherwise it falls back to `python`. Create `config/config.yaml` locally before running it.
 若 session 過期，請重新執行 `--login`。請勿提交 cookies 或已填入內容的 `storage_state.json`。
 
 If the session expires, run `--login` again. Do not commit cookies or a populated `storage_state.json`.
+
+顯示本機 Ticket / Show a stored ticket
+
+`show` 預設只讀取 SQLite 並顯示 Comments 統一摘要；加上 `--all-comments` 可列出所有 Comments。兩者都不需要 Jira 連線或 OpenAI API Key：
+
+The `show` command reads SQLite only. It does not require a Jira connection or OpenAI API key, and displays issue details, description, comment summaries, attachments, and history:
+
+```bat
+scripts\nasdaq-jira.bat show XTAIFEX-306
+scripts\nasdaq-jira.bat show XTAIFEX-306 --all-comments
+```
 
 ## 專案結構 / Project layout
 
@@ -77,6 +102,15 @@ datasource:
 
 In `auto` mode, the application calls `/rest/api/2/myself`. Authentication, 404, network, or availability failures are logged and fall back to Playwright.
 
+## Issue 詳細資料與 Comments 摘要 / Issue details and comment summaries
+
+每個 Jira issue 會從詳細頁擷取 Details 欄位、Description、Comments 與 History。原始 issue 會保留在 `jira_issues.issue_json`；Comments 與 History 也會分別寫入 `jira_comments` 與 `jira_history`，方便查詢與增量更新。
+
+Each Jira issue is enriched from its detail page with Details fields, Description, Comments, and History. The original issue snapshot is stored in `jira_issues.issue_json`; comments and history are also normalized into `jira_comments` and `jira_history` for querying and incremental updates.
+
+Comment summaries are deterministic extractive summaries by default, so crawling does not require an AI API key. The raw comment body is always preserved. The stored `body_hash` allows a future LLM summarizer to regenerate summaries only when comment content changes.
+
+Comments are summarized with a deterministic extractive method by default. The original comment body is always preserved, and `body_hash` enables a future LLM summarizer to process only changed comments.
 ## 增量同步 / Incremental synchronization
 
 同步狀態會儲存在 SQLite 的 `sync_state` 與 `sync_events`。預設使用六小時 overlap window，避免邊界更新遺漏。

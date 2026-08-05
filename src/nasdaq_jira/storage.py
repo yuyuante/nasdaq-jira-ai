@@ -1,5 +1,6 @@
 """SQLite persistence for issues, synchronization state and events."""
 
+import hashlib
 import sqlite3
 from collections.abc import Iterable
 from datetime import UTC, datetime
@@ -39,6 +40,30 @@ class SQLiteIssueRepository:
                 "ALTER TABLE jira_issues ADD COLUMN issue_json TEXT"
             )
         self._connection.execute(
+            """CREATE TABLE IF NOT EXISTS jira_comments (
+                issue_key TEXT NOT NULL,
+                comment_id TEXT NOT NULL,
+                author TEXT,
+                created_at TEXT,
+                body TEXT NOT NULL,
+                summary TEXT,
+                body_hash TEXT NOT NULL,
+                PRIMARY KEY(issue_key, comment_id),
+                FOREIGN KEY(issue_key) REFERENCES jira_issues(key) ON DELETE CASCADE
+            )"""
+        )
+        self._connection.execute(
+            """CREATE TABLE IF NOT EXISTS jira_history (
+                issue_key TEXT NOT NULL,
+                history_id TEXT NOT NULL,
+                author TEXT,
+                created_at TEXT,
+                details TEXT NOT NULL,
+                PRIMARY KEY(issue_key, history_id),
+                FOREIGN KEY(issue_key) REFERENCES jira_issues(key) ON DELETE CASCADE
+            )"""
+        )
+        self._connection.execute(
             """CREATE TABLE IF NOT EXISTS sync_state (
                 datasource TEXT PRIMARY KEY,
                 last_sync_time TEXT,
@@ -58,6 +83,7 @@ class SQLiteIssueRepository:
         self._connection.commit()
 
     def upsert_many(self, issues: Iterable[JiraIssue]) -> int:
+        """Upsert issues and replace their normalized comments and history."""
         rows = list(issues)
         self._connection.executemany(
             """INSERT INTO jira_issues(
@@ -82,6 +108,45 @@ class SQLiteIssueRepository:
                 for issue in rows
             ],
         )
+        for issue in rows:
+            self._connection.execute(
+                "DELETE FROM jira_comments WHERE issue_key = ?", (issue.key,)
+            )
+            self._connection.execute(
+                "DELETE FROM jira_history WHERE issue_key = ?", (issue.key,)
+            )
+            self._connection.executemany(
+                """INSERT INTO jira_comments(
+                    issue_key, comment_id, author, created_at, body, summary, body_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                [
+                    (
+                        issue.key,
+                        comment.comment_id or f"comment-{index}",
+                        comment.author,
+                        comment.created_at,
+                        comment.body,
+                        comment.summary,
+                        hashlib.sha256(comment.body.encode("utf-8")).hexdigest(),
+                    )
+                    for index, comment in enumerate(issue.comments)
+                ],
+            )
+            self._connection.executemany(
+                """INSERT INTO jira_history(
+                    issue_key, history_id, author, created_at, details
+                ) VALUES (?, ?, ?, ?, ?)""",
+                [
+                    (
+                        issue.key,
+                        entry.history_id or f"history-{index}",
+                        entry.author,
+                        entry.created_at,
+                        entry.details,
+                    )
+                    for index, entry in enumerate(issue.history)
+                ],
+            )
         self._connection.commit()
         return len(rows)
 
