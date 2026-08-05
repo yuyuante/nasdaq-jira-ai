@@ -68,6 +68,15 @@ class DatasourceConfig(BaseModel):
     api: ApiConfig = Field(default_factory=ApiConfig)
 
 
+class SyncConfig(BaseModel):
+    """Incremental synchronization settings."""
+
+    mode: Literal["full", "incremental"] = "incremental"
+    overlap_hours: int = Field(ge=0, default=6)
+    batch_size: int = Field(gt=0, default=50)
+    datasource: str = "default"
+
+
 class DatabaseConfig(BaseModel):
     """Database persistence settings."""
 
@@ -101,6 +110,7 @@ class AppConfig(BaseSettings):
     browser: BrowserConfig
     crawler: CrawlerConfig
     datasource: DatasourceConfig = Field(default_factory=DatasourceConfig)
+    sync: SyncConfig = Field(default_factory=SyncConfig)
     database: DatabaseConfig
     logging: LoggingConfig
 

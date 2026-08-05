@@ -124,3 +124,30 @@ force the persisted `storage_state.json` session. API requests use pagination,
 timeouts, retries with exponential backoff, latency logging, and rate-limit
 errors.
 '
+
+## Incremental synchronization
+
+Synchronization state is stored in SQLite tables `sync_state` and
+`sync_events`. The default mode is incremental with a six-hour overlap window:
+
+```yaml
+sync:
+  mode: incremental
+  overlap_hours: 6
+  batch_size: 50
+  datasource: default
+```
+
+Run synchronization with:
+
+```powershell
+python -m nasdaq_jira --config config/config.yaml sync
+python -m nasdaq_jira --config config/config.yaml sync --full
+python -m nasdaq_jira --config config/config.yaml sync --resume
+```
+
+Incremental mode adds `updated >= last_sync_time - overlap_hours` to the JQL.
+Each successful batch checkpoints its last issue key. If a run is interrupted,
+`--resume` continues after the saved checkpoint. Issue snapshots and immutable,
+idempotent events are persisted so duplicate updates do not generate duplicate
+processing. Metrics report total, new, updated, skipped and failed issues.
