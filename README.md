@@ -57,7 +57,7 @@ If the session expires, run `--login` again. Do not commit cookies or a populate
 
 `show` 預設只讀取 SQLite 並顯示 Comments 統一摘要；加上 `--all-comments` 可列出所有 Comments。兩者都不需要 Jira 連線或 OpenAI API Key：
 
-The `show` command reads SQLite only. It does not require a Jira connection or OpenAI API key, and displays issue details, description, comment summaries, attachments, and history:
+The `show` command reads SQLite only. It does not require a Jira connection or OpenAI API key. By default, it displays issue details, description, comment summaries, attachments, and history; add `--all-comments` to display every raw comment:
 
 ```bat
 scripts\nasdaq-jira.bat show XTAIFEX-306
@@ -108,9 +108,9 @@ In `auto` mode, the application calls `/rest/api/2/myself`. Authentication, 404,
 
 Each Jira issue is enriched from its detail page with Details fields, Description, Comments, and History. The original issue snapshot is stored in `jira_issues.issue_json`; comments and history are also normalized into `jira_comments` and `jira_history` for querying and incremental updates.
 
-Comment summaries are deterministic extractive summaries by default, so crawling does not require an AI API key. The raw comment body is always preserved. The stored `body_hash` allows a future LLM summarizer to regenerate summaries only when comment content changes.
+留言摘要預設採用不需外部服務的抽取式方法，因此爬取資料不需要 AI API Key。原始留言內容會完整保留；儲存的 `body_hash` 可讓未來的 LLM 摘要器只重新處理內容有變更的留言。
 
-Comments are summarized with a deterministic extractive method by default. The original comment body is always preserved, and `body_hash` enables a future LLM summarizer to process only changed comments.
+By default, comment summaries use a deterministic extractive method, so crawling does not require an AI API key. The original comment body is always preserved, and the stored `body_hash` allows a future LLM summarizer to process only changed comments.
 ## 增量同步 / Incremental synchronization
 
 同步狀態會儲存在 SQLite 的 `sync_state` 與 `sync_events`。預設使用六小時 overlap window，避免邊界更新遺漏。
