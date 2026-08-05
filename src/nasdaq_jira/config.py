@@ -68,6 +68,30 @@ class DatasourceConfig(BaseModel):
     api: ApiConfig = Field(default_factory=ApiConfig)
 
 
+class SyncConfig(BaseModel):
+    """Incremental synchronization settings."""
+
+    mode: Literal["full", "incremental"] = "incremental"
+    overlap_hours: int = Field(ge=0, default=6)
+    batch_size: int = Field(gt=0, default=50)
+    datasource: str = "default"
+
+
+class RagConfig(BaseModel):
+    """Retrieval-augmented generation settings."""
+
+    enabled: bool = True
+    embedding_provider: Literal["openai"] = "openai"
+    embedding_model: str = "text-embedding-3-small"
+    answer_model: str = "gpt-4o-mini"
+    api_key: str | None = None
+    base_url: str = "https://api.openai.com/v1"
+    top_k: int = Field(gt=0, default=8)
+    score_threshold: float = Field(ge=0, default=0.75)
+    chunk_size: int = Field(gt=0, default=800)
+    chunk_overlap: int = Field(ge=0, default=100)
+
+
 class DatabaseConfig(BaseModel):
     """Database persistence settings."""
 
@@ -101,6 +125,8 @@ class AppConfig(BaseSettings):
     browser: BrowserConfig
     crawler: CrawlerConfig
     datasource: DatasourceConfig = Field(default_factory=DatasourceConfig)
+    sync: SyncConfig = Field(default_factory=SyncConfig)
+    rag: RagConfig = Field(default_factory=RagConfig)
     database: DatabaseConfig
     logging: LoggingConfig
 
