@@ -1,4 +1,5 @@
-from nasdaq_jira.cli import _format_issue
+from nasdaq_jira.changes import ChangeReport, IssueChange
+from nasdaq_jira.cli import _format_issue, format_change_report
 from nasdaq_jira.models import JiraComment, JiraIssue
 
 
@@ -42,3 +43,20 @@ def test_format_issue_can_include_all_comments() -> None:
 
     assert "All comments:" in output
     assert "The raw comment body." in output
+
+
+def test_format_change_report_lists_new_and_updated_issues() -> None:
+    report = ChangeReport(
+        changes=[
+            IssueChange("NAS-1", "new"),
+            IssueChange("NAS-2", "updated", ("status", "comment +1")),
+            IssueChange("NAS-3", "unchanged"),
+        ]
+    )
+
+    output = format_change_report(report)
+
+    assert "- New: 1" in output
+    assert "- Updated: 1" in output
+    assert "- Unchanged: 1" in output
+    assert "- NAS-2: status, comment +1" in output
