@@ -134,6 +134,11 @@ python -m nasdaq_jira --config config/config.yaml sync --resume
 增量模式會使用 `updated >= last_sync_time - overlap_hours` JQL。每個成功 batch 都會建立 checkpoint；中斷後使用 `--resume` 從 checkpoint 繼續。事件具備 immutable 與 idempotent 特性。
 
 Incremental mode uses `updated >= last_sync_time - overlap_hours`. Every successful batch creates a checkpoint; `--resume` continues after an interruption. Events are immutable and idempotent.
+## 同步結果與變更報告 / Synchronization change report
+
+`crawl` 與 `sync` 會在寫入 SQLite 前比較既有快照，並顯示處理總數、新增、更新與未變更的 issue。更新項目會列出可辨識的差異，例如 `status`、`description`、`comment +2` 或 `attachment +1`。這些比較不需要 AI API。
+
+Both `crawl` and `sync` compare incoming snapshots with the existing SQLite data before persistence. The output reports processed, new, updated, and unchanged issues, and lists detectable changes such as `status`, `description`, `comment +2`, or `attachment +1`. This comparison does not require an AI API.
 
 ## AI 知識庫（RAG） / AI knowledge base (RAG)
 

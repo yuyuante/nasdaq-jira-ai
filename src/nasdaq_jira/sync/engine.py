@@ -6,6 +6,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
+from ..changes import ChangeReport
 from ..config import SyncConfig
 from ..datasources.base import JiraDataSource
 from ..models import JiraIssue
@@ -39,6 +40,7 @@ class SyncEngine:
         self._config = config
         self._jql = jql
         self.metrics = SyncMetrics()
+        self.report = ChangeReport()
 
     async def full_sync(self) -> SyncMetrics:
         return await self._run("full")
@@ -51,6 +53,7 @@ class SyncEngine:
 
     async def _run(self, mode: str) -> SyncMetrics:
         self.metrics = SyncMetrics()
+        self.report = ChangeReport()
         started = time.perf_counter()
         state = self._repository.get_sync_state(self._config.datasource)
         if mode == "resume" and state and state.status == "running":
@@ -101,30 +104,29 @@ class SyncEngine:
             raise
 
     def _process_batch(self, issues: list[JiraIssue]) -> None:
+        report = ChangeReport.from_repository(self._repository, issues)
         events: list[SyncEvent] = []
-        new_count = updated_count = skipped_count = 0
-        for issue in issues:
-            previous = self._repository.get_issue(issue.key)
-            if previous is None:
-                new_count += 1
+        self.report.changes.extend(report.changes)
+        for issue, change in zip(issues, report.changes, strict=True):
+            if change.change_type == "new":
                 events.append(self._event(IssueCreated, issue.key))
-            elif previous.model_dump_json() == issue.model_dump_json():
-                skipped_count += 1
+            elif change.change_type == "unchanged":
                 continue
             else:
-                updated_count += 1
                 events.append(self._event(IssueUpdated, issue.key))
-                if previous.status != issue.status:
+                if "status" in change.fields:
                     events.append(self._event(StatusChanged, issue.key))
-                if len(issue.comments) > len(previous.comments):
+                if any(field.startswith("comment +") for field in change.fields):
                     events.append(self._event(CommentAdded, issue.key))
-                elif issue.comments != previous.comments:
+                elif "comment" in change.fields:
                     events.append(self._event(CommentUpdated, issue.key))
-                if len(issue.attachments) > len(previous.attachments):
+                if any(field.startswith("attachment +") for field in change.fields):
                     events.append(self._event(AttachmentAdded, issue.key))
         self._repository.upsert_many(issues)
         self._repository.insert_events(events)
-        self.metrics.add_batch(len(issues), new_count, updated_count, skipped_count)
+        self.metrics.add_batch(
+            len(issues), len(report.new), len(report.updated), len(report.unchanged)
+        )
 
     @staticmethod
     def _event(event_type: type[SyncEvent], issue_key: str) -> SyncEvent:

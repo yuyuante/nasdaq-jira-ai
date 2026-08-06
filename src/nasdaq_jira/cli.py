@@ -5,6 +5,7 @@ import asyncio
 import sys
 from pathlib import Path
 
+from .changes import ChangeReport
 from .config import AppConfig, load_config
 from .datasources import create_data_source
 from .datasources.exceptions import AuthenticationError, PlaywrightError
@@ -67,7 +68,9 @@ def main() -> None:
         else:
             issues = asyncio.run(_crawl(config))
             with SQLiteIssueRepository(config.database.path) as repository:
+                report = ChangeReport.from_repository(repository, issues)
                 saved = repository.upsert_many(issues)
+                print(format_change_report(report))
                 print(
                     f"Saved {saved} issues; "
                     f"database contains {repository.count()} issues."
@@ -135,6 +138,26 @@ def _format_issue(issue: JiraIssue, *, all_comments: bool = False) -> str:
     return "\n".join(lines)
 
 
+def format_change_report(report: ChangeReport) -> str:
+    """Render crawl changes in a compact, actionable form."""
+    lines = [
+        "Changes:",
+        f"- Processed: {report.total}",
+        f"- New: {len(report.new)}",
+        f"- Updated: {len(report.updated)}",
+        f"- Unchanged: {len(report.unchanged)}",
+    ]
+    if report.new:
+        lines.append("New issues:")
+        lines.extend(f"- {change.key}" for change in report.new)
+    if report.updated:
+        lines.append("Updated issues:")
+        for change in report.updated:
+            details = ", ".join(change.fields) or "content changed"
+            lines.append(f"- {change.key}: {details}")
+    return "\n".join(lines)
+
+
 async def _crawl(config: AppConfig) -> list[JiraIssue]:
     source = await create_data_source(config)
     try:
@@ -163,7 +186,8 @@ async def _sync(config: AppConfig, args: argparse.Namespace) -> None:
                 metrics = await engine.resume_sync()
             else:
                 metrics = await engine.incremental_sync()
-            print(metrics)
+            print(format_change_report(engine.report))
+            print(f"Metrics: {metrics}")
     finally:
         close = getattr(source, "close", None)
         if close is not None:
