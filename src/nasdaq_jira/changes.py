@@ -14,6 +14,7 @@ class IssueChange:
     key: str
     change_type: str
     fields: tuple[str, ...] = ()
+    differences: tuple[tuple[str, str, str], ...] = ()
 
 
 @dataclass(slots=True)
@@ -54,15 +55,37 @@ class ChangeReport:
         if previous.model_dump_json() == current.model_dump_json():
             return IssueChange(current.key, "unchanged")
 
-        fields = [
-            label
-            for attribute, label in cls._SCALAR_FIELDS
-            if getattr(previous, attribute) != getattr(current, attribute)
-        ]
+        fields = []
+        differences = []
+        for attribute, label in cls._SCALAR_FIELDS:
+            before = getattr(previous, attribute)
+            after = getattr(current, attribute)
+            if before != after:
+                fields.append(label)
+                differences.append(
+                    (label, cls._format_value(before), cls._format_value(after))
+                )
+        for attribute in ("comments", "attachments", "history"):
+            before = getattr(previous, attribute)
+            after = getattr(current, attribute)
+            if before != after:
+                label = attribute[:-1] if attribute.endswith("s") else attribute
+                differences.append((label, str(len(before)), str(len(after))))
         fields.extend(cls._activity_change(previous, current, "comments"))
         fields.extend(cls._activity_change(previous, current, "attachments"))
         fields.extend(cls._activity_change(previous, current, "history"))
-        return IssueChange(current.key, "updated", tuple(fields))
+        return IssueChange(current.key, "updated", tuple(fields), tuple(differences))
+
+    @staticmethod
+    def _format_value(value: object) -> str:
+        if value is None:
+            return "(none)"
+        if isinstance(value, list):
+            value = ", ".join(str(item) for item in value) or "(empty)"
+        formatted = str(value).replace("\r", "").replace("\n", "\\n")
+        if len(formatted) > 160:
+            return f"{formatted[:157]}..."
+        return formatted
 
     @staticmethod
     def _activity_change(

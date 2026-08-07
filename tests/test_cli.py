@@ -49,7 +49,12 @@ def test_format_change_report_lists_new_and_updated_issues() -> None:
     report = ChangeReport(
         changes=[
             IssueChange("NAS-1", "new"),
-            IssueChange("NAS-2", "updated", ("status", "comment +1")),
+            IssueChange(
+                "NAS-2",
+                "updated",
+                ("status", "comment +1"),
+                (("status", "Open", "Done"), ("comment", "1", "2")),
+            ),
             IssueChange("NAS-3", "unchanged"),
         ]
     )
@@ -59,4 +64,4 @@ def test_format_change_report_lists_new_and_updated_issues() -> None:
     assert "- New: 1" in output
     assert "- Updated: 1" in output
     assert "- Unchanged: 1" in output
-    assert "- NAS-2: status, comment +1" in output
+    assert "- NAS-2: status (Open -> Done), comment (1 -> 2)" in output

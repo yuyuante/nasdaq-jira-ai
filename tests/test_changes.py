@@ -24,6 +24,10 @@ def test_change_report_identifies_new_updated_and_unchanged(tmp_path: Path) -> N
         "new",
     ]
     assert report.updated[0].fields == ("summary", "status")
+    assert report.updated[0].differences == (
+        ("summary", "Original", "Changed"),
+        ("status", "(none)", "Done"),
+    )
 
 
 def test_change_report_describes_added_comments() -> None:
