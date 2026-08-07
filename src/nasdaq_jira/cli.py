@@ -154,6 +154,11 @@ def format_change_report(report: ChangeReport) -> str:
         lines.append("Updated issues:")
         for change in report.updated:
             details = ", ".join(change.fields) or "content changed"
+            if change.differences:
+                details = ", ".join(
+                    f"{field} ({before} -> {after})"
+                    for field, before, after in change.differences
+                )
             lines.append(f"- {change.key}: {details}")
     return "\n".join(lines)
 
