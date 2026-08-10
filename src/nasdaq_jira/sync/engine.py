@@ -104,6 +104,7 @@ class SyncEngine:
             raise
 
     def _process_batch(self, issues: list[JiraIssue]) -> None:
+        issues = self._preserve_existing_created_at(issues)
         report = ChangeReport.from_repository(self._repository, issues)
         events: list[SyncEvent] = []
         self.report.changes.extend(report.changes)
@@ -127,6 +128,28 @@ class SyncEngine:
         self.metrics.add_batch(
             len(issues), len(report.new), len(report.updated), len(report.unchanged)
         )
+
+    def _preserve_existing_created_at(
+        self, issues: list[JiraIssue]
+    ) -> list[JiraIssue]:
+        """Keep a stored creation time when the detail page omits it."""
+        preserved: list[JiraIssue] = []
+        for issue in issues:
+            previous = self._repository.get_issue(issue.key)
+            if (
+                previous is not None
+                and issue.details.created_at is None
+                and previous.details.created_at is not None
+            ):
+                issue = issue.model_copy(
+                    update={
+                        "details": issue.details.model_copy(
+                            update={"created_at": previous.details.created_at}
+                        )
+                    }
+                )
+            preserved.append(issue)
+        return preserved
 
     @staticmethod
     def _event(event_type: type[SyncEvent], issue_key: str) -> SyncEvent:

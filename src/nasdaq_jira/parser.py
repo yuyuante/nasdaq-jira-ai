@@ -98,7 +98,9 @@ class JiraIssueParser:
             service_product=await self._page_optional_text(
                 page, "detail_service_product"
             ),
-            created_at=await self._page_optional_text(page, "detail_created_at"),
+            created_at=await self._page_optional_text(
+                page, "detail_created_at", wait_for_attached=True
+            ),
         )
         comments = await self._page_comments(page)
         history = await self._page_history(page)
@@ -193,13 +195,28 @@ class JiraIssueParser:
         history: list[JiraHistoryEntry] = []
         for index, item in enumerate(await locator.all()):
             details = (await item.inner_text()).strip()
-            if details:
-                history.append(
-                    JiraHistoryEntry(
-                        history_id=await item.get_attribute("id") or f"history-{index}",
-                        details=details,
-                    )
+            if not details:
+                continue
+            author_locator = item.locator("a.user-hover").first
+            author = (
+                (await author_locator.inner_text()).strip()
+                if await author_locator.count()
+                else None
+            )
+            time_locator = item.locator("time[datetime]").first
+            created_at = (
+                await time_locator.get_attribute("datetime")
+                if await time_locator.count()
+                else None
+            )
+            history.append(
+                JiraHistoryEntry(
+                    history_id=await item.get_attribute("id") or f"history-{index}",
+                    details=details,
+                    author=author or None,
+                    created_at=created_at,
                 )
+            )
         return history
 
     async def _page_attachments(self, page: Page) -> list[JiraAttachment]:
@@ -226,15 +243,26 @@ class JiraIssueParser:
             return row
         return locator
 
-    async def _page_optional_text(self, page: Page, field: str) -> str | None:
+    async def _page_optional_text(
+        self,
+        page: Page,
+        field: str,
+        *,
+        wait_for_attached: bool = False,
+    ) -> str | None:
         selector = self._selectors.get(field, "")
         if not selector:
             return None
         locator = page.locator(selector).first
-        if await locator.count() == 0:
-            return None
         try:
-            return (await locator.inner_text(timeout=self._activity_timeout_ms)).strip()
+            if wait_for_attached:
+                await locator.wait_for(
+                    state="attached", timeout=self._activity_timeout_ms
+                )
+            elif await locator.count() == 0:
+                return None
+            value = await locator.inner_text(timeout=self._activity_timeout_ms)
+            return value.strip() or None
         except PlaywrightTimeoutError:
             return None
 
