@@ -2,8 +2,8 @@
 
 import re
 
-from playwright.async_api import Locator, Page
 from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import Locator, Page
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from .models import (
@@ -146,9 +146,7 @@ class JiraIssueParser:
         if tab_selector:
             tab = page.locator(tab_selector).first
             try:
-                await tab.wait_for(
-                    state="attached", timeout=self._activity_timeout_ms
-                )
+                await tab.wait_for(state="attached", timeout=self._activity_timeout_ms)
             except PlaywrightTimeoutError as exc:
                 raise RuntimeError("Jira Comments tab was not found") from exc
             try:
@@ -211,9 +209,7 @@ class JiraIssueParser:
         if tab_selector:
             tab = page.locator(tab_selector).first
             try:
-                await tab.wait_for(
-                    state="attached", timeout=self._activity_timeout_ms
-                )
+                await tab.wait_for(state="attached", timeout=self._activity_timeout_ms)
             except PlaywrightTimeoutError as exc:
                 raise RuntimeError("Jira History tab was not found") from exc
             try:

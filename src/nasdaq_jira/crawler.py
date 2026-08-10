@@ -242,8 +242,11 @@ class JiraCrawler:
             current_start_index = self._start_index(next_page)
             await _goto_page_with_retry(page, next_page)
         if issue_key and issue_key not in issues_by_key:
-            raise RuntimeError(f"Issue {issue_key} was not found in Jira search results")
+            raise RuntimeError(
+                f"Issue {issue_key} was not found in Jira search results"
+            )
         return list(issues_by_key.values())
+
     async def _enrich_issue_batch(
         self,
         context: BrowserContext,
@@ -281,7 +284,11 @@ class JiraCrawler:
                         f"Failed to enrich issue={issue.key}: "
                         f"{type(exc).__name__}: {exc}"
                     )
-                    logger.exception("%s%s", message, "; continuing with next issue" if continue_on_error else "")
+                    logger.exception(
+                        "%s%s",
+                        message,
+                        "; continuing with next issue" if continue_on_error else "",
+                    )
                     if not continue_on_error:
                         raise RuntimeError(message) from exc
             return enriched
