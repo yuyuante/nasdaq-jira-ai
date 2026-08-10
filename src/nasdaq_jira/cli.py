@@ -12,6 +12,7 @@ from .datasources.exceptions import AuthenticationError, PlaywrightError
 from .datasources.playwright import JiraPlaywrightDataSource
 from .logging_config import configure_logging
 from .models import JiraIssue
+from .parser import is_valid_jira_issue_key
 from .rag.engine import RagEngine
 from .rag.providers import OpenAIProvider
 from .rag.vector_store import SQLiteFts5VectorStore
@@ -135,6 +136,10 @@ def _format_issue(issue: JiraIssue, *, all_comments: bool = False) -> str:
         author = entry.author or "unknown author"
         created_at = entry.created_at or "unknown time"
         lines.append(f"- [{created_at}] {author}: {entry.details}")
+        for change in entry.changes:
+            old_value = change.old_value or "(none)"
+            new_value = change.new_value or "(none)"
+            lines.append(f"  - {change.field}: {old_value} -> {new_value}")
     return "\n".join(lines)
 
 
@@ -179,12 +184,12 @@ async def _sync(config: AppConfig, args: argparse.Namespace) -> None:
     source = await create_data_source(config)
     try:
         with SQLiteIssueRepository(config.database.path) as repository:
-            engine = SyncEngine(
-                source,
-                repository,
-                config.sync,
-                jql_from_search_url(config.crawler.search_url),
-            )
+            jql = jql_from_search_url(config.crawler.search_url)
+            if args.query:
+                if not is_valid_jira_issue_key(args.query):
+                    raise RuntimeError(f"Invalid Jira issue key for sync: {args.query}")
+                jql = f'key = "{args.query.upper()}"'
+            engine = SyncEngine(source, repository, config.sync, jql)
             if args.full:
                 metrics = await engine.full_sync()
             elif args.resume:

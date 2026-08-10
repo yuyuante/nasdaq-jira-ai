@@ -30,6 +30,14 @@ class JiraAttachment(BaseModel):
     url: str | None = None
 
 
+class JiraHistoryChange(BaseModel):
+    """One field change recorded in Jira history."""
+
+    field: str
+    old_value: str | None = None
+    new_value: str | None = None
+
+
 class JiraHistoryEntry(BaseModel):
     """A Jira issue history entry."""
 
@@ -37,6 +45,7 @@ class JiraHistoryEntry(BaseModel):
     details: str
     author: str | None = None
     created_at: str | None = None
+    changes: list[JiraHistoryChange] = Field(default_factory=list)
 
 
 class JiraIssue(BaseModel):

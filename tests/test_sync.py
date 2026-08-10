@@ -4,7 +4,7 @@ import pytest
 
 from nasdaq_jira.config import SyncConfig
 from nasdaq_jira.datasources.base import JiraDataSource
-from nasdaq_jira.models import JiraIssue
+from nasdaq_jira.models import JiraIssue, JiraIssueDetails
 from nasdaq_jira.storage import SQLiteIssueRepository
 from nasdaq_jira.sync.engine import SyncEngine
 
@@ -28,8 +28,15 @@ class FakeSource(JiraDataSource):
         return []
 
 
-def issue(key: str, summary: str = "summary") -> JiraIssue:
-    return JiraIssue(key=key, summary=summary, updated_at="2026-08-05T00:00:00+00:00")
+def issue(
+    key: str, summary: str = "summary", created_at: str | None = None
+) -> JiraIssue:
+    return JiraIssue(
+        key=key,
+        summary=summary,
+        updated_at="2026-08-05T00:00:00+00:00",
+        details=JiraIssueDetails(created_at=created_at),
+    )
 
 
 def engine(tmp_path: Path, source: FakeSource, batch_size: int = 50) -> SyncEngine:
@@ -47,6 +54,20 @@ async def test_first_sync_and_idempotency(tmp_path: Path) -> None:
     assert metrics.new_issues == 2
     second = await sync.full_sync()
     assert second.skipped_issues == 2
+
+
+@pytest.mark.asyncio
+async def test_sync_preserves_created_at_when_source_omits_it(tmp_path: Path) -> None:
+    source = FakeSource([issue("TEST-1", created_at="2026-08-05 09:00")])
+    sync = engine(tmp_path, source)
+    await sync.full_sync()
+
+    source.issues = [issue("TEST-1")]
+    await sync.full_sync()
+
+    stored = sync._repository.get_issue("TEST-1")
+    assert stored is not None
+    assert stored.details.created_at == "2026-08-05 09:00"
 
 
 @pytest.mark.asyncio

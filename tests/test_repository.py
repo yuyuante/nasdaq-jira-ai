@@ -29,7 +29,14 @@ def test_upsert_persists_comments_and_history(tmp_path: Path) -> None:
                     summary="Investigation started",
                 )
             ],
-            history=[JiraHistoryEntry(history_id="h1", details="Status changed")],
+            history=[
+                JiraHistoryEntry(
+                    history_id="h1",
+                    details="Status changed",
+                    author="Peter Yu",
+                    created_at="2026-08-10T09:00:00+0800",
+                )
+            ],
         )
         repository.upsert_many([issue])
         stored = repository.get_issue("NAS-2")
@@ -37,3 +44,5 @@ def test_upsert_persists_comments_and_history(tmp_path: Path) -> None:
     assert stored is not None
     assert stored.comments[0].summary == "Investigation started"
     assert stored.history[0].details == "Status changed"
+    assert stored.history[0].author == "Peter Yu"
+    assert stored.history[0].created_at == "2026-08-10T09:00:00+0800"

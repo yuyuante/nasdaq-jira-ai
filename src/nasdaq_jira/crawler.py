@@ -101,7 +101,7 @@ class JiraCrawler:
 
                 await browser.close()
 
-    async def crawl(self) -> list[JiraIssue]:
+    async def crawl(self, issue_key: str | None = None) -> list[JiraIssue]:
         """Crawl configured search result pages using the saved session."""
 
         state_path = self._browser_config.storage_state_path
@@ -127,7 +127,7 @@ class JiraCrawler:
 
             try:
 
-                issues = await self._crawl_pages(page)
+                issues = await self._crawl_pages(page, issue_key)
 
                 logger.info("Crawled %d Jira issues", len(issues))
 
@@ -199,7 +199,9 @@ class JiraCrawler:
             "the CLI with --login."
         )
 
-    async def _crawl_pages(self, page: Page) -> list[JiraIssue]:
+    async def _crawl_pages(
+        self, page: Page, issue_key: str | None = None
+    ) -> list[JiraIssue]:
         issues_by_key: dict[str, JiraIssue] = {}
         current_start_index = 0
         await _goto_page_with_retry(page, self._crawler_config.search_url)
@@ -207,7 +209,12 @@ class JiraCrawler:
             await self._assert_authenticated(page)
             await self._wait_for_issue_list(page)
             page_issues = await self._parser.parse_page(page)
-            pending = [issue for issue in page_issues if issue.key not in issues_by_key]
+            pending = [
+                issue
+                for issue in page_issues
+                if issue.key not in issues_by_key
+                and (issue_key is None or issue.key == issue_key)
+            ]
             concurrency = self._crawler_config.detail_concurrency
             batches = [
                 pending[index::concurrency]
@@ -215,38 +222,75 @@ class JiraCrawler:
                 if pending[index::concurrency]
             ]
             enriched_batches = await asyncio.gather(
-                *(self._enrich_issue_batch(page.context, batch) for batch in batches)
+                *(
+                    self._enrich_issue_batch(
+                        page.context,
+                        batch,
+                        continue_on_error=issue_key is None,
+                    )
+                    for batch in batches
+                )
             )
             for batch in enriched_batches:
                 for issue in batch:
                     issues_by_key[issue.key] = issue
+            if issue_key and issue_key in issues_by_key:
+                return [issues_by_key[issue_key]]
             next_page = await self._next_page_url(page, current_start_index)
             if next_page is None:
                 break
             current_start_index = self._start_index(next_page)
             await _goto_page_with_retry(page, next_page)
+        if issue_key and issue_key not in issues_by_key:
+            raise RuntimeError(
+                f"Issue {issue_key} was not found in Jira search results"
+            )
         return list(issues_by_key.values())
 
     async def _enrich_issue_batch(
-        self, context: BrowserContext, issues: list[JiraIssue]
+        self,
+        context: BrowserContext,
+        issues: list[JiraIssue],
+        *,
+        continue_on_error: bool = True,
     ) -> list[JiraIssue]:
         detail_page = await context.new_page()
         detail_page.set_default_timeout(self._browser_config.timeout_ms)
         try:
             enriched: list[JiraIssue] = []
             for issue in issues:
-                if issue.source_url:
-                    detail_url = urljoin(
-                        self._crawler_config.search_url, issue.source_url
+                try:
+                    if issue.source_url:
+                        detail_url = urljoin(
+                            self._crawler_config.search_url, issue.source_url
+                        )
+                        await _goto_detail_page_with_retry(
+                            detail_page,
+                            detail_url,
+                            self._crawler_config.selectors["detail_summary"],
+                        )
+                        await self._assert_authenticated(detail_page)
+                        issue = await self._parser.parse_detail_page(detail_page, issue)
+                    enriched.append(issue)
+                except SessionExpiredError as exc:
+                    message = (
+                        f"Failed to enrich issue={issue.key}: "
+                        f"authentication/session error: {exc}"
                     )
-                    await _goto_detail_page_with_retry(
-                        detail_page,
-                        detail_url,
-                        self._crawler_config.selectors["detail_summary"],
+                    logger.error(message)
+                    raise RuntimeError(message) from exc
+                except Exception as exc:
+                    message = (
+                        f"Failed to enrich issue={issue.key}: "
+                        f"{type(exc).__name__}: {exc}"
                     )
-                    await self._assert_authenticated(detail_page)
-                    issue = await self._parser.parse_detail_page(detail_page, issue)
-                enriched.append(issue)
+                    logger.exception(
+                        "%s%s",
+                        message,
+                        "; continuing with next issue" if continue_on_error else "",
+                    )
+                    if not continue_on_error:
+                        raise RuntimeError(message) from exc
             return enriched
         finally:
             await detail_page.close()

@@ -50,17 +50,17 @@ set "EXIT_CODE=%ERRORLEVEL%"
 goto done
 
 :sync
-"%PYTHON%" -m nasdaq_jira --config config\config.yaml sync --incremental
+"%PYTHON%" -m nasdaq_jira --config config\config.yaml sync --incremental %~2
 set "EXIT_CODE=%ERRORLEVEL%"
 goto done
 
 :sync_full
-"%PYTHON%" -m nasdaq_jira --config config\config.yaml sync --full
+"%PYTHON%" -m nasdaq_jira --config config\config.yaml sync --full %~2
 set "EXIT_CODE=%ERRORLEVEL%"
 goto done
 
 :sync_resume
-"%PYTHON%" -m nasdaq_jira --config config\config.yaml sync --resume
+"%PYTHON%" -m nasdaq_jira --config config\config.yaml sync --resume %~2
 set "EXIT_CODE=%ERRORLEVEL%"
 goto done
 
@@ -93,10 +93,10 @@ goto done
 echo Usage:
 echo   scripts\nasdaq-jira.bat login       - Login to Jira and save the browser session
 echo   scripts\nasdaq-jira.bat crawl       - Crawl the issue list and save issues
-echo   scripts\nasdaq-jira.bat sync        - Run incremental synchronization
+echo   scripts\nasdaq-jira.bat sync [ISSUE-KEY] - Run incremental synchronization
 echo   scripts\nasdaq-jira.bat incremental - Run incremental synchronization
 echo   scripts\nasdaq-jira.bat sync-full   - Run a full synchronization
-echo   scripts\nasdaq-jira.bat sync-resume - Resume an interrupted synchronization
+echo   scripts\nasdaq-jira.bat sync-resume [ISSUE-KEY] - Resume an interrupted synchronization
 echo   scripts\nasdaq-jira.bat ask "Your question" - Ask the Jira AI knowledge base
 echo   scripts\nasdaq-jira.bat show ISSUE-KEY - Display a stored Jira issue and comment summaries
 echo     Add --all-comments to display every stored comment
