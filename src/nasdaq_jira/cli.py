@@ -187,9 +187,7 @@ async def _sync(config: AppConfig, args: argparse.Namespace) -> None:
             jql = jql_from_search_url(config.crawler.search_url)
             if args.query:
                 if not is_valid_jira_issue_key(args.query):
-                    raise RuntimeError(
-                        f"Invalid Jira issue key for sync: {args.query}"
-                    )
+                    raise RuntimeError(f"Invalid Jira issue key for sync: {args.query}")
                 jql = f'key = "{args.query.upper()}"'
             engine = SyncEngine(source, repository, config.sync, jql)
             if args.full:

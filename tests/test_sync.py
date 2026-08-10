@@ -69,6 +69,7 @@ async def test_sync_preserves_created_at_when_source_omits_it(tmp_path: Path) ->
     assert stored is not None
     assert stored.details.created_at == "2026-08-05 09:00"
 
+
 @pytest.mark.asyncio
 async def test_incremental_query_uses_six_hour_overlap(tmp_path: Path) -> None:
     source = FakeSource([issue("TEST-1")])

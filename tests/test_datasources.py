@@ -63,6 +63,8 @@ async def _true() -> bool:
 
 async def _false() -> bool:
     return False
+
+
 @pytest.mark.asyncio
 async def test_playwright_datasource_limits_sync_to_requested_issue(
     monkeypatch: pytest.MonkeyPatch,

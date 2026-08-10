@@ -17,6 +17,8 @@ async def test_crawl_requires_saved_session(tmp_path: Path) -> None:
 
     with pytest.raises(SessionExpiredError, match="--login"):
         await crawler.crawl()
+
+
 @pytest.mark.asyncio
 async def test_crawl_continues_after_one_issue_enrichment_error(
     tmp_path: Path,

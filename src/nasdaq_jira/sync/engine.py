@@ -129,9 +129,7 @@ class SyncEngine:
             len(issues), len(report.new), len(report.updated), len(report.unchanged)
         )
 
-    def _preserve_existing_created_at(
-        self, issues: list[JiraIssue]
-    ) -> list[JiraIssue]:
+    def _preserve_existing_created_at(self, issues: list[JiraIssue]) -> list[JiraIssue]:
         """Keep a stored creation time when the detail page omits it."""
         preserved: list[JiraIssue] = []
         for issue in issues:
