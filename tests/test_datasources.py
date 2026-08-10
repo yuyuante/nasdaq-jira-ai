@@ -1,6 +1,7 @@
 import pytest
 
 from nasdaq_jira.config import AppConfig
+from nasdaq_jira.crawler import JiraCrawler
 from nasdaq_jira.datasources import factory
 from nasdaq_jira.datasources.api import JiraApiDataSource
 from nasdaq_jira.datasources.playwright import JiraPlaywrightDataSource
@@ -62,3 +63,23 @@ async def _true() -> bool:
 
 async def _false() -> bool:
     return False
+@pytest.mark.asyncio
+async def test_playwright_datasource_limits_sync_to_requested_issue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = JiraPlaywrightDataSource(
+        app_config("playwright").browser,
+        app_config("playwright").crawler,
+    )
+    requested: list[str | None] = []
+
+    async def fake_crawl(
+        self: JiraCrawler, issue_key: str | None = None
+    ) -> list[object]:
+        requested.append(issue_key)
+        return []
+
+    monkeypatch.setattr(JiraCrawler, "crawl", fake_crawl)
+    await source.search_issues('key = "XTAIFEX-306"')
+
+    assert requested == ["XTAIFEX-306"]

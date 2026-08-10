@@ -3,11 +3,13 @@
 import re
 
 from playwright.async_api import Locator, Page
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from .models import (
     JiraAttachment,
     JiraComment,
+    JiraHistoryChange,
     JiraHistoryEntry,
     JiraIssue,
     JiraIssueDetails,
@@ -103,13 +105,21 @@ class JiraIssueParser:
             ),
         )
         comments = await self._page_comments(page)
-        history = await self._page_history(page)
+        try:
+            history = await self._page_history(page)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"Failed to load Jira history for {issue.key}: {exc}"
+            ) from exc
         resolution_summary = summarize_comments(comments) or None
         updates: dict[str, object] = {
             "details": details,
             "comments": comments,
             "history": history,
             "resolution_summary": resolution_summary,
+            "updated_at": await self._page_optional_text(
+                page, "detail_updated_at", wait_for_attached=True
+            ),
         }
         for field, selector_key in (
             ("summary", "detail_summary"),
@@ -132,6 +142,19 @@ class JiraIssueParser:
         return issue.model_copy(update=updates)
 
     async def _page_comments(self, page: Page) -> list[JiraComment]:
+        tab_selector = self._selectors.get("detail_comments_tab", "")
+        if tab_selector:
+            tab = page.locator(tab_selector).first
+            try:
+                await tab.wait_for(
+                    state="attached", timeout=self._activity_timeout_ms
+                )
+            except PlaywrightTimeoutError as exc:
+                raise RuntimeError("Jira Comments tab was not found") from exc
+            try:
+                await tab.click(timeout=self._activity_timeout_ms)
+            except (PlaywrightError, PlaywrightTimeoutError) as exc:
+                raise RuntimeError("Jira Comments tab could not be loaded") from exc
         selector = self._selectors.get("detail_comments", "")
         if not selector:
             return []
@@ -155,6 +178,8 @@ class JiraIssueParser:
             container = item.locator(
                 "xpath=ancestor::div[contains(@class, 'activity-comment')][1]"
             )
+            if not await container.count():
+                continue
             comment_id = await container.get_attribute(
                 "id"
             ) or await item.get_attribute("data-comment-id")
@@ -182,6 +207,20 @@ class JiraIssueParser:
         return comments
 
     async def _page_history(self, page: Page) -> list[JiraHistoryEntry]:
+        tab_selector = self._selectors.get("detail_history_tab", "")
+        if tab_selector:
+            tab = page.locator(tab_selector).first
+            try:
+                await tab.wait_for(
+                    state="attached", timeout=self._activity_timeout_ms
+                )
+            except PlaywrightTimeoutError as exc:
+                raise RuntimeError("Jira History tab was not found") from exc
+            try:
+                await tab.click(timeout=self._activity_timeout_ms)
+            except (PlaywrightError, PlaywrightTimeoutError) as exc:
+                raise RuntimeError("Jira History tab could not be loaded") from exc
+
         selector = self._selectors.get("detail_history", "")
         if not selector:
             return []
@@ -190,34 +229,66 @@ class JiraIssueParser:
             await locator.first.wait_for(
                 state="attached", timeout=self._activity_timeout_ms
             )
-        except PlaywrightTimeoutError:
-            return []
+        except PlaywrightTimeoutError as exc:
+            raise RuntimeError("Jira History entries did not load") from exc
         history: list[JiraHistoryEntry] = []
         for index, item in enumerate(await locator.all()):
             details = (await item.inner_text()).strip()
             if not details:
                 continue
-            author_locator = item.locator("a.user-hover").first
+            container = item.locator("xpath=..").first
+            author_locator = container.locator("a.user-hover").first
             author = (
                 (await author_locator.inner_text()).strip()
                 if await author_locator.count()
                 else None
             )
-            time_locator = item.locator("time[datetime]").first
+            time_locator = container.locator("time[datetime]").first
             created_at = (
                 await time_locator.get_attribute("datetime")
                 if await time_locator.count()
                 else None
             )
+            changes: list[JiraHistoryChange] = []
+            for row in await item.locator("tr").all():
+                field_locator = row.locator(".activity-name").first
+                if not await field_locator.count():
+                    continue
+                field = " ".join((await field_locator.inner_text()).split())
+                old_value = await self._history_value(row, ".activity-old-val")
+                new_value = await self._history_value(row, ".activity-new-val")
+                changes.append(
+                    JiraHistoryChange(
+                        field=field,
+                        old_value=old_value,
+                        new_value=new_value,
+                    )
+                )
+            if changes:
+                details = "; ".join(
+                    f"{change.field}: {change.old_value or '(none)'} -> "
+                    f"{change.new_value or '(none)'}"
+                    for change in changes
+                )
+            history_id = await item.locator("table").first.get_attribute("id")
             history.append(
                 JiraHistoryEntry(
-                    history_id=await item.get_attribute("id") or f"history-{index}",
+                    history_id=history_id or f"history-{index}",
                     details=details,
                     author=author or None,
                     created_at=created_at,
+                    changes=changes,
                 )
             )
         return history
+
+    @staticmethod
+    async def _history_value(row: Locator, selector: str) -> str | None:
+        locator = row.locator(selector).first
+        if not await locator.count():
+            return None
+        value = " ".join((await locator.inner_text()).split())
+        return re.sub(r"^(?:Original|New):\s*", "", value, flags=re.IGNORECASE) or None
 
     async def _page_attachments(self, page: Page) -> list[JiraAttachment]:
         selector = self._selectors.get("detail_attachments", "")
