@@ -1,5 +1,6 @@
 @echo off
 setlocal
+set "PYTHONPATH="
 
 set "ROOT=%~dp0.."
 pushd "%ROOT%" || exit /b 1
